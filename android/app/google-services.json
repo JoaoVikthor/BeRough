@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "540567968038",
+    "project_id": "berough",
+    "storage_bucket": "berough.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:540567968038:android:d91191a15376dcdef749e7",
+        "android_client_info": {
+          "package_name": "com.example.berough"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxLTqGrWqUy3khK78VA_pa15JTchXgskU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
