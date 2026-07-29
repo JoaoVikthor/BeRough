@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import '../app_state.dart';
+import '../design/tokens.dart';
+import '../design/ui.dart';
 import 'journey/dashboard_screen.dart';
+import 'journey/trail_detail_screen.dart';
 import 'running_screen.dart';
-import 'profile_screen.dart'; // Importação do arquivo de perfil real
-
-// Este arquivo gerencia a barra de navegação inferior (Bottom Navigation)
-// e alterna entre as telas principais do BeRough.
+import 'skill_selection_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -23,9 +24,9 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _screens = [
       const DashboardScreen(),
-      _buildJourneyTab(), // Aba de Jornada dinâmica
-      const Center(child: Text("Comunidade / Feed (Em Breve)", style: TextStyle(color: Colors.white))),
-      const ProfileScreen(), // Tela de Perfil Real na quarta aba!
+      _buildJourneyTab(),
+      _buildTriboPlaceholder(),
+      const ProfileScreen(),
     ];
   }
 
@@ -41,90 +42,158 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Widget _buildTriboPlaceholder() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(BeSpacing.sm),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.group_outlined,
+                size: 64, color: BeColors.muted),
+            const SizedBox(height: BeSpacing.xs),
+            Text(
+              "TRIBO\nEm Breve",
+              textAlign: TextAlign.center,
+              style: BeFonts.displayMd.copyWith(
+                  color: BeColors.muted, fontSize: 22, letterSpacing: -0.22),
+            ),
+            const SizedBox(height: BeSpacing.xxs),
+            Text(
+              "Comunidade e feed social para os atletas BeRough.",
+              textAlign: TextAlign.center,
+              style: BeFonts.bodyMd.copyWith(color: BeColors.muted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildJourneyTab() {
     return Builder(
       builder: (context) {
-        final allSkills = AppState.instance.availableSkills;
         final selectedIds = AppState.instance.selectedSkillIds;
+        // Mostra APENAS as trilhas que o usuário selecionou previamente.
+        final selectedSkills = AppState.instance.availableSkills
+            .where((s) => selectedIds.contains(s.id))
+            .toList();
 
         return SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(horizontal: BeSpacing.sm),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                const SizedBox(height: BeSpacing.sm),
+                Text(
                   "SUA JORNADA",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Oswald',
-                    letterSpacing: 1.5,
-                  ),
+                  style: BeFonts.displayMd.copyWith(
+                      fontSize: 28, letterSpacing: -0.28, color: BeColors.ink),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                const SizedBox(height: BeSpacing.xxs),
+                Text(
                   "As missões disponíveis refletem diretamente as escolhas do seu perfil.",
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                  style: BeFonts.bodyMd.copyWith(color: BeColors.body),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: BeSpacing.sm),
 
                 _buildMissionCard(
                   context,
                   title: "Corrida ao Ar Livre",
                   subtitle: "Rastreamento por GPS em tempo real",
-                  description: "Monitore seu trajeto com o Custom Canvas dinâmico, calcule seu ritmo (pace) e meça suas calorias de forma real.",
+                  description:
+                      "Monitore seu trajeto no mapa, calcule seu ritmo (pace) e meça suas calorias de forma real.",
                   isActive: true,
-                  badgeText: "CARDIO ATIVO",
+                  badgeText: "Cardio Ativo",
                   icon: Icons.directions_run_rounded,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const RunningScreen()),
-                    );
-                  },
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const RunningScreen()),
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: BeSpacing.xs),
 
-                ...allSkills.map((skill) {
-                  final bool isSelected = selectedIds.contains(skill.id);
-                  
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: _buildMissionCard(
-                      context,
-                      title: "Desafio ${skill.name}",
-                      subtitle: skill.category,
-                      description: "Progressões avançadas com o peso corporal focadas no desenvolvimento de força neural para ${skill.name}.",
-                      isActive: isSelected,
-                      badgeText: isSelected ? "MISSÃO DISPONÍVEL" : "BLOQUEADO (Selecione no Onboarding)",
-                      icon: _getSkillIcon(skill.iconName),
-                      onTap: () {
-                        if (isSelected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text("Iniciando rotina de treinos para ${skill.name}! Core firme, atleta."),
-                              backgroundColor: const Color(0xFF9C27B0),
-                            ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Esta skill está bloqueada. Altere suas metas no Onboarding para liberar."),
-                              backgroundColor: Colors.orangeAccent,
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                  );
-                }).toList(),
+                if (selectedSkills.isEmpty)
+                  _buildEmptyTrilhasCard(context)
+                else
+                  ...selectedSkills.map((skill) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: BeSpacing.xxs),
+                      child: _buildMissionCard(
+                        context,
+                        title: "Desafio ${skill.name}",
+                        subtitle: skill.category,
+                        description:
+                            "Progressões com o peso corporal focadas no desenvolvimento de força neural para ${skill.name}.",
+                        isActive: true,
+                        badgeText: "${skill.difficulty} — Missão Ativa",
+                        icon: _getSkillIcon(skill.iconName),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                TrailDetailScreen(skill: skill),
+                          ),
+                        ).then((_) => setState(() {})),
+                      ),
+                    );
+                  }),
+
+                const SizedBox(height: BeSpacing.xxs),
+                SizedBox(
+                  width: double.infinity,
+                  child: BeOutlineButton(
+                    label: "Gerenciar Trilhas",
+                    icon: Icons.add_circle_outline,
+                    onPressed: () async {
+                      final bool? updated = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const SkillSelectionScreen(isEditMode: true),
+                        ),
+                      );
+                      if (updated == true && mounted) {
+                        setState(() {});
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: BeSpacing.sm),
               ],
             ),
           ),
         );
-      }
+      },
+    );
+  }
+
+  Widget _buildEmptyTrilhasCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(BeSpacing.sm),
+      decoration: BoxDecoration(
+        color: BeColors.canvasElevated,
+        border: Border.all(color: BeColors.hairline, width: 1),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.map_outlined, size: 48, color: BeColors.muted),
+          const SizedBox(height: BeSpacing.xs),
+          Text(
+            "Nenhuma trilha selecionada ainda.",
+            style: BeFonts.titleMd.copyWith(fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Toque em GERENCIAR TRILHAS para escolher suas metas de treino.",
+            textAlign: TextAlign.center,
+            style: BeFonts.bodySm.copyWith(color: BeColors.body),
+          ),
+        ],
+      ),
     );
   }
 
@@ -138,16 +207,14 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final Color border = isActive ? BeColors.primary : BeColors.hairline;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(BeSpacing.xs),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A24),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isActive ? const Color(0xFF9C27B0).withOpacity(0.5) : const Color(0xFF333333),
-          width: isActive ? 1.5 : 1.0,
-        ),
+        color: BeColors.canvasElevated,
+        border: Border.all(color: border, width: isActive ? 1.5 : 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,59 +222,40 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isActive ? const Color(0xFF9C27B0).withOpacity(0.2) : const Color(0xFF333333).withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  badgeText,
-                  style: TextStyle(
-                    color: isActive ? const Color(0xFFE040FB) : Colors.grey,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
-                  ),
-                ),
+              BeBadgePill(
+                label: badgeText,
+                background: isActive
+                    ? BeColors.primary.withOpacity(0.12)
+                    : BeColors.canvasElevated,
+                foreground:
+                    isActive ? BeColors.primary : BeColors.muted,
               ),
-              Icon(icon, color: isActive ? const Color(0xFF9C27B0) : Colors.grey, size: 24),
+              Icon(icon,
+                  color: isActive ? BeColors.primary : BeColors.muted,
+                  size: 24),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: TextStyle(
-              color: isActive ? Colors.white : Colors.white30,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Oswald',
-            ),
-          ),
-          Text(
-            subtitle,
-            style: TextStyle(color: isActive ? Colors.grey : Colors.white24, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: BeSpacing.xxs),
+          Text(title,
+              style: BeFonts.titleMd.copyWith(
+                color: isActive ? BeColors.ink : BeColors.muted,
+                fontSize: 20,
+              )),
+          Text(subtitle,
+              style: BeFonts.caption.copyWith(color: BeColors.muted)),
+          const SizedBox(height: BeSpacing.xxs),
           Text(
             description,
-            style: TextStyle(color: isActive ? Colors.white70 : Colors.white24, fontSize: 13, height: 1.4),
+            style: BeFonts.bodySm.copyWith(
+                color: isActive ? BeColors.body : BeColors.muted),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: BeSpacing.xs),
           if (isActive)
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: BePrimaryButton(
+                label: "Iniciar Missão",
                 onPressed: onTap,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF9C27B0),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: const Text(
-                  "INICIAR MISSÃO",
-                  style: TextStyle(fontFamily: 'Oswald', fontWeight: FontWeight.bold, letterSpacing: 1.0),
-                ),
               ),
             ),
         ],
@@ -218,26 +266,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFF333333), width: 1)),
+          border: Border(top: BorderSide(color: BeColors.hairline, width: 1)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          backgroundColor: const Color(0xFF0D0D12),
+          onTap: (index) => setState(() => _currentIndex = index),
+          backgroundColor: BeColors.canvas,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF9C27B0),
-          unselectedItemColor: Colors.grey,
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-          unselectedLabelStyle: const TextStyle(fontSize: 12),
+          selectedItemColor: BeColors.primary,
+          unselectedItemColor: BeColors.muted,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
