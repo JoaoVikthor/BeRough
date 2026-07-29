@@ -166,9 +166,7 @@ class _AuthGateState extends State<AuthGate> {
       if (AppState.instance.nickname.isEmpty) {
         AppState.instance.nickname = user.displayName ?? "";
       }
-      if (AppState.instance.profilePhotoPath == null) {
-        AppState.instance.profilePhotoPath = user.photoURL;
-      }
+      AppState.instance.profilePhotoPath ??= user.photoURL;
 
       Navigator.pushReplacement(
         context,

@@ -82,6 +82,185 @@ class CalisthenicsSkill {
     required this.initialProgress,
     required this.iconName,
   });
+
+  /// true para a skill de corrida (usa GPS + baseline de corrida).
+  bool get isRunning => id == 'running_skill';
+}
+
+/// Tipo de métrica que um passo de trilha mede.
+enum TrailMetricKind { time, reps, sets, hold, distance }
+
+/// Classificação de calistenia usada pela UI de seleção de metas para decidir
+/// quais campos mostrar (reps, séries, ou isometria em segundos). Espelha o
+/// subconjunto de `TrailMetricKind` aplicável à calistenia.
+enum CalistheniaKind { reps, sets, hold }
+
+/// Meta definida pelo atleta para UMA skill (o alvo final da trilha).
+class ExerciseGoal {
+  final String skillId;
+
+  /// Distância alvo em metros (corrida). 0 se não se aplica.
+  final double targetDistanceMeters;
+
+  /// Tempo alvo em segundos (corrida: 1km em X min; hold: tempo de isometria).
+  final double targetSeconds;
+
+  /// Repetições por série alvo (calistenia reps). 0 se não se aplica.
+  final int targetReps;
+
+  /// Número de séries alvo (calistenia). 0 se não se aplica.
+  final int targetSets;
+
+  ExerciseGoal({
+    required this.skillId,
+    this.targetDistanceMeters = 0,
+    this.targetSeconds = 0,
+    this.targetReps = 0,
+    this.targetSets = 0,
+  });
+
+  TrailMetricKind get metricKind {
+    if (targetDistanceMeters > 0) return TrailMetricKind.distance;
+    if (targetReps > 0 && targetSets > 0) return TrailMetricKind.sets;
+    if (targetReps > 0) return TrailMetricKind.reps;
+    if (targetSeconds > 0) return TrailMetricKind.hold;
+    return TrailMetricKind.time;
+  }
+
+  String describe(CalisthenicsSkill skill) {
+    if (skill.isRunning) {
+      final km = (targetDistanceMeters / 1000).toStringAsFixed(2);
+      final min = (targetSeconds / 60).toStringAsFixed(0);
+      final s = (targetSeconds % 60).toInt().toString().padLeft(2, '0');
+      return '$km km em $min\':$s"';
+    }
+    switch (metricKind) {
+      case TrailMetricKind.sets:
+        return '$targetSets séries de $targetReps reps';
+      case TrailMetricKind.reps:
+        return '$targetReps repetições';
+      case TrailMetricKind.hold:
+        return 'isometria de ${(targetSeconds).toStringAsFixed(0)}s';
+      case TrailMetricKind.time:
+        return 'tempo alvo ${(targetSeconds).toStringAsFixed(0)}s';
+      case TrailMetricKind.distance:
+        return '${(targetDistanceMeters / 1000).toStringAsFixed(2)} km';
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+        'skillId': skillId,
+        'distance': targetDistanceMeters,
+        'seconds': targetSeconds,
+        'reps': targetReps,
+        'sets': targetSets,
+      };
+
+  factory ExerciseGoal.fromJson(Map<String, dynamic> j) => ExerciseGoal(
+        skillId: j['skillId'] ?? '',
+        targetDistanceMeters: (j['distance'] ?? 0).toDouble(),
+        targetSeconds: (j['seconds'] ?? 0).toDouble(),
+        targetReps: (j['reps'] ?? 0).toInt(),
+        targetSets: (j['sets'] ?? 0).toInt(),
+      );
+}
+
+/// Origem do baseline de corrida usado para dimensionar os passos da trilha.
+enum BaselineSource { history, assessment, manual }
+
+/// Métrica prévia de corrida — base para dimensionar progressivos de treino.
+class RunBaseline {
+  final double distanceMeters;
+  final double seconds;
+  final String pace;
+  final BaselineSource source;
+  final DateTime capturedAt;
+
+  RunBaseline({
+    required this.distanceMeters,
+    required this.seconds,
+    required this.pace,
+    required this.source,
+    required this.capturedAt,
+  });
+
+  double get avgPaceSecPerKm => distanceMeters > 0
+      ? seconds / (distanceMeters / 1000)
+      : double.infinity;
+
+  Map<String, dynamic> toJson() => {
+        'distanceMeters': distanceMeters,
+        'seconds': seconds,
+        'pace': pace,
+        'source': source.name,
+        'capturedAt': capturedAt.toIso8601String(),
+      };
+
+  factory RunBaseline.fromJson(Map<String, dynamic> j) => RunBaseline(
+        distanceMeters: (j['distanceMeters'] ?? 0).toDouble(),
+        seconds: (j['seconds'] ?? 0).toDouble(),
+        pace: j['pace'] ?? "-'--\"",
+        source: BaselineSource.values.firstWhere(
+          (s) => s.name == (j['source'] ?? 'manual'),
+          orElse: () => BaselineSource.manual,
+        ),
+        capturedAt:
+            DateTime.tryParse(j['capturedAt'] ?? '') ?? DateTime.now(),
+      );
+
+  String describe() {
+    final km = (distanceMeters / 1000).toStringAsFixed(2);
+    final min = (seconds / 60).floor().toString().padLeft(2, '0');
+    final s = (seconds % 60).floor().toString().padLeft(2, '0');
+    return '$km km em $min:$s ($pace)';
+  }
+}
+
+/// Um passo de uma trilha progressiva.
+class TrailStep {
+  final String id;
+  final int index;
+
+  /// Fração da meta final (0..1) que este passo representa (progressão).
+  final double goalFraction;
+  final String title;
+  final String desc;
+
+  /// Referência de mídia (gif/imagem/video) a inserir depois; null = placeholder.
+  final String? mediaRef;
+  final TrailMetricKind metricKind;
+
+  /// Valor alvo do passo (sem unidade — interpretado por metricKind).
+  final double targetValue;
+
+  /// Estimativa derivada do baseline (para contexto/coach).
+  final double estimateFromBaseline;
+
+  TrailStep({
+    required this.id,
+    required this.index,
+    required this.goalFraction,
+    required this.title,
+    required this.desc,
+    this.mediaRef,
+    required this.metricKind,
+    required this.targetValue,
+    required this.estimateFromBaseline,
+  });
+}
+
+/// Plano de trilha completo de uma skill.
+class TrailPlan {
+  final String skillId;
+  final List<TrailStep> steps;
+
+  /// Índice do passo atual (0-based). Persistido pelo AppState.completedStages.
+  int get currentIndex =>
+      (AppState.instance.completedStages[skillId] ?? 0).clamp(0, steps.length);
+
+  TrailPlan({required this.skillId, required this.steps});
+
+  int get totalSteps => steps.length;
 }
 
 /// Centralizador de Estado em Memória (Singleton).
@@ -104,6 +283,10 @@ class AppState {
   static const _kUserRecords = 'profile_user_records';
   static const _kRunHistory = 'profile_run_history';
   static const _kUserRestored = 'profile_user_restored';
+  static const _kGoals = 'profile_exercise_goals';
+  static const _kRunBaseline = 'profile_run_baseline';
+  static const _kCalisthenicsBaselines =
+      'profile_calisthenics_baselines';
 
   bool _restored = false;
 
@@ -118,6 +301,14 @@ class AppState {
 
   final Map<String, int> completedStages = {};
   final Map<String, String> userRecords = {};
+  final Map<String, ExerciseGoal> goals = {};
+
+  /// Baseline por exercício de calistenia — quantas reps (ou segundos, em
+  /// holds) o atleta consegue fazer HOJE daquele exercício. Métrica de
+  /// comparação para gerar a trilha progressiva. NÃO usa a corrida.
+  final Map<String, int> calisthenicsBaselines = {};
+
+  RunBaseline? runBaseline;
 
   final List<CalisthenicsSkill> availableSkills = [
     CalisthenicsSkill(
@@ -204,6 +395,28 @@ class AppState {
           ..addAll(list.map((e) => RunLog.fromJson(e as Map<String, dynamic>)));
       }
 
+      final goalsRaw = prefs.getString(_kGoals);
+      if (goalsRaw != null) {
+        final map = jsonDecode(goalsRaw) as Map<String, dynamic>;
+        goals.clear();
+        map.forEach((k, v) =>
+            goals[k] = ExerciseGoal.fromJson(v as Map<String, dynamic>));
+      }
+
+      final baselineRaw = prefs.getString(_kRunBaseline);
+      if (baselineRaw != null) {
+        runBaseline = RunBaseline.fromJson(
+            jsonDecode(baselineRaw) as Map<String, dynamic>);
+      }
+
+      final calBaselinesRaw = prefs.getString(_kCalisthenicsBaselines);
+      if (calBaselinesRaw != null) {
+        final map = jsonDecode(calBaselinesRaw) as Map<String, dynamic>;
+        calisthenicsBaselines.clear();
+        map.forEach(
+            (k, v) => calisthenicsBaselines[k] = (v as num).toInt());
+      }
+
       _restored = true;
       _restoredFlagSet(prefs);
     } catch (_) {
@@ -224,6 +437,13 @@ class AppState {
     await prefs.setStringList(_kSkills, selectedSkillIds);
     await prefs.setString(_kCompletedStages, jsonEncode(completedStages));
     await prefs.setString(_kUserRecords, jsonEncode(userRecords));
+    await prefs.setString(_kGoals,
+        jsonEncode(goals.map((k, v) => MapEntry(k, v.toJson()))));
+    if (runBaseline != null) {
+      await prefs.setString(_kRunBaseline, jsonEncode(runBaseline!.toJson()));
+    }
+    await prefs.setString(
+        _kCalisthenicsBaselines, jsonEncode(calisthenicsBaselines));
   }
 
   Future<void> addRunToHistory(RunLog run) async {
@@ -254,6 +474,9 @@ class AppState {
     await prefs.remove(_kUserRecords);
     await prefs.remove(_kRunHistory);
     await prefs.remove(_kUserRestored);
+    await prefs.remove(_kGoals);
+    await prefs.remove(_kRunBaseline);
+    await prefs.remove(_kCalisthenicsBaselines);
 
     weight = 75.0;
     height = 1.75;
@@ -264,6 +487,9 @@ class AppState {
     selectedSkillIds.clear();
     completedStages.clear();
     userRecords.clear();
+    goals.clear();
+    calisthenicsBaselines.clear();
+    runBaseline = null;
     _restored = false;
   }
 
@@ -310,4 +536,79 @@ class AppState {
 
   /// Número de recordes pessoais distintos salvos.
   int get totalPRs => userRecords.length;
+
+  // ===== Metas, baseline de corrida e trilhas =====
+
+  ExerciseGoal? goalFor(String skillId) => goals[skillId];
+
+  void setGoal(ExerciseGoal goal) {
+    goals[goal.skillId] = goal;
+  }
+
+  /// true quando a corrida está entre as trilhas selecionadas.
+  bool get runningSkillEnabled =>
+      selectedSkillIds.contains('running_skill');
+
+  /// Última corrida registrada (candidata a baseline via histórico).
+  RunLog? get lastRun => runHistory.isEmpty ? null : runHistory.first;
+
+  /// Define/eterna o baseline de corrida a partir de uma corrida existente.
+  void setRunBaselineFromHistory() {
+    final r = lastRun;
+    if (r == null) return;
+    runBaseline = RunBaseline(
+      distanceMeters: r.distanceInMeters,
+      seconds: r.seconds.toDouble(),
+      pace: r.pace,
+      source: BaselineSource.history,
+      capturedAt: r.date,
+    );
+  }
+
+  /// Define baseline manual (input do atleta).
+  void setRunBaselineManual({
+    required double distanceMeters,
+    required double seconds,
+    required String pace,
+  }) {
+    runBaseline = RunBaseline(
+      distanceMeters: distanceMeters,
+      seconds: seconds,
+      pace: pace,
+      source: BaselineSource.manual,
+      capturedAt: DateTime.now(),
+    );
+  }
+
+  /// Define baseline a partir de uma corrida de avaliação recém-feita.
+  void setRunBaselineAssessment({
+    required double distanceMeters,
+    required double seconds,
+    required String pace,
+    required List<Position> route,
+  }) {
+    runBaseline = RunBaseline(
+      distanceMeters: distanceMeters,
+      seconds: seconds.toDouble(),
+      pace: pace,
+      source: BaselineSource.assessment,
+      capturedAt: DateTime.now(),
+    );
+  }
+
+  // ===== Baseline de calistenia (por exercício) =====
+  //
+  // Quantos DAQUELE exercício o atleta consegue fazer HOJE (reps, ou
+  // segundos em holds). É a métrica de comparação para gerar a trilha
+  // progressiva daquela skill — não usa a corrida.
+
+  int? calisthenicsBaselineOf(String skillId) =>
+      calisthenicsBaselines[skillId];
+
+  /// Define o baseline de calistenia. Também espelha em `userRecords`
+  /// (formato legível) para a UI de Perfil mostrar "PR".
+  void setCalisthenicsBaseline(String skillId, int value) {
+    calisthenicsBaselines[skillId] = value;
+    userRecords[skillId] = value.toString();
+  }
 }

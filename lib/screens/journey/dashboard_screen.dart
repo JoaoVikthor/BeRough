@@ -19,6 +19,10 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   static const double _kImageBox = 88;
 
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -30,12 +34,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final runs = AppState.instance.runHistory;
 
-    final int completedExercises = runs.length;
-    final int currentLevel = (completedExercises ~/ 3) + 1;
-    final int currentXP = completedExercises * 50;
-    final int nextLevelXP = currentLevel * 150;
-    final double levelProgress =
-        nextLevelXP > 0 ? (currentXP / nextLevelXP).clamp(0.0, 1.0) : 0.0;
+    final app = AppState.instance;
+    final int currentLevel = app.athleteLevel;
+    final int currentXP = app.currentXP;
+    final int nextLevelXP = app.nextLevelXP;
+    final double levelProgress = app.levelProgress;
+    final int xpToNext = (nextLevelXP - currentXP).clamp(0, nextLevelXP);
+
+    final bool runEnabled = app.runningSkillEnabled;
 
     return Scaffold(
       backgroundColor: BeColors.canvas,
@@ -46,8 +52,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildLevelCard(currentLevel, currentXP, nextLevelXP, levelProgress),
+              _buildLevelCard(currentLevel, currentXP, nextLevelXP, levelProgress, xpToNext),
               const SizedBox(height: BeSpacing.sm),
+
+              const BeSectionLabel("Resumo de Performance"),
+              const SizedBox(height: BeSpacing.xxs),
+              _buildStatsGrid(app),
+              const SizedBox(height: BeSpacing.sm),
+
+              if (runEnabled) ...[
+                _buildRunningGoalCard(),
+                const SizedBox(height: BeSpacing.sm),
+              ],
 
               const BeSectionLabel("Suas Metas Ativas"),
               const SizedBox(height: BeSpacing.xxs),
@@ -56,21 +72,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   : _buildSkillsList(activeSkills),
               const SizedBox(height: BeSpacing.sm),
 
-              SizedBox(
-                width: double.infinity,
-                child: BePrimaryButton(
-                  label: "Iniciar Corrida com GPS",
-                  icon: Icons.satellite_alt,
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const RunningScreen()),
-                  ).then((_) {
-                    if (mounted) setState(() {});
-                  }),
+              if (runEnabled) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: BePrimaryButton(
+                    label: "Iniciar Corrida com GPS",
+                    icon: Icons.satellite_alt,
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const RunningScreen()),
+                    ).then((_) => _refresh()),
+                  ),
                 ),
-              ),
-              const SizedBox(height: BeSpacing.sm),
+                const SizedBox(height: BeSpacing.sm),
+              ] else ...[
+                _buildRunDisabledCard(),
+                const SizedBox(height: BeSpacing.sm),
+              ],
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -82,9 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         context,
                         MaterialPageRoute(
                             builder: (context) => const RunHistoryScreen()),
-                      ).then((_) {
-                        if (mounted) setState(() {});
-                      }),
+                      ).then((_) => _refresh()),
                       child: Text("VER TUDO",
                           style: BeFonts.captionUppercase.copyWith(
                               color: BeColors.primary,
@@ -160,7 +177,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildLevelCard(int level, int currentXP, int nextLevelXP, double progress) {
+  Widget _buildLevelCard(int level, int currentXP, int nextLevelXP, double progress, int xpToNext) {
     return BeCard(
       padding: const EdgeInsets.all(BeSpacing.xs),
       borderColor: BeColors.hairline,
@@ -188,6 +205,138 @@ class _DashboardScreenState extends State<DashboardScreen> {
               valueColor:
                   const AlwaysStoppedAnimation<Color>(BeColors.primary),
               minHeight: 4,
+            ),
+          ),
+          const SizedBox(height: BeSpacing.xxs),
+          Text("Faltam $xpToNext XPs para o nível ${level + 1}",
+              style: BeFonts.caption.copyWith(color: BeColors.muted)),
+        ],
+      ),
+    );
+  }
+
+  /// Grid 2x2 com métricas agregadas úteis (distância, tempo, calorias, etapas).
+  Widget _buildStatsGrid(AppState app) {
+    Widget statCell(IconData icon, String value, String label, Color tint) {
+      return Container(
+        padding: const EdgeInsets.all(BeSpacing.xs),
+        decoration: BoxDecoration(
+          color: BeColors.canvasElevated,
+          border: Border.all(color: BeColors.hairline, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: tint, size: 20),
+            const SizedBox(height: BeSpacing.xxs),
+            Text(value, style: BeFonts.titleMd.copyWith(fontSize: 18)),
+            const SizedBox(height: 2),
+            Text(label,
+                style: BeFonts.captionUppercase.copyWith(
+                    color: BeColors.body, fontSize: 9, letterSpacing: 1.1)),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: statCell(Icons.route_rounded, app.totalDistanceKm,
+                  "Km Totais", BeColors.primary),
+            ),
+            const SizedBox(width: BeSpacing.xxs),
+            Expanded(
+              child: statCell(Icons.timer_outlined, app.totalTimeFormatted,
+                  "Tempo Total", BeColors.semanticInfo),
+            ),
+          ],
+        ),
+        const SizedBox(height: BeSpacing.xxs),
+        Row(
+          children: [
+            Expanded(
+              child: statCell(Icons.local_fire_department_rounded,
+                  "${app.totalCalories}", "Kcal", BeColors.semanticWarning),
+            ),
+            const SizedBox(width: BeSpacing.xxs),
+            Expanded(
+              child: statCell(Icons.checklist_rtl_rounded,
+                  "${app.totalCompletedStages}", "Etapas", BeColors.semanticSuccess),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Card de meta de corrida — só aparece quando a corrida está selecionada.
+  Widget _buildRunningGoalCard() {
+    final app = AppState.instance;
+    final goal = app.goalFor('running_skill');
+    if (goal == null) {
+      return BeCard(
+        borderColor: BeColors.primary,
+        child: Text(
+          "Defina sua meta de corrida nas trilhas para dimensionar o treino.",
+          style: BeFonts.bodyMd.copyWith(color: BeColors.ink),
+        ),
+      );
+    }
+
+    final hasBaseline = app.runBaseline != null;
+    final baselineText =
+        hasBaseline ? app.runBaseline!.describe() : "Sem baseline ainda";
+
+    return BeCard(
+      padding: const EdgeInsets.all(BeSpacing.xs),
+      borderColor: BeColors.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("META DE CORRIDA",
+                  style: BeFonts.captionUppercase.copyWith(
+                      color: BeColors.primary, letterSpacing: 1.1, fontSize: 10)),
+              Icon(Icons.directions_run_rounded,
+                  color: BeColors.primary, size: 22),
+            ],
+          ),
+          const SizedBox(height: BeSpacing.xxs),
+          Text("Alvo: ${goal.describe(app.availableSkills.firstWhere((s) => s.isRunning))}",
+              style: BeFonts.titleMd.copyWith(fontSize: 16)),
+          const SizedBox(height: 4),
+          Text("Baseline: $baselineText",
+              style: BeFonts.bodySm.copyWith(color: BeColors.body)),
+        ],
+      ),
+    );
+  }
+
+  /// Card exibido quando a corrida NÃO está entre as skills selecionadas.
+  Widget _buildRunDisabledCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(BeSpacing.xs),
+      decoration: BoxDecoration(
+        color: BeColors.canvasElevated,
+        border: Border.all(
+            color: BeColors.hairline,
+            width: 1,
+            style: BorderStyle.solid),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, color: BeColors.muted, size: 20),
+          const SizedBox(width: BeSpacing.xxs),
+          Expanded(
+            child: Text(
+              "Selecione a trilha de Corrida nas metas para liberar o tracker GPS.",
+              style: BeFonts.bodySm.copyWith(color: BeColors.body),
             ),
           ),
         ],
@@ -227,9 +376,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             context,
             MaterialPageRoute(
                 builder: (context) => TrailDetailScreen(skill: skill)),
-          ).then((_) {
-            if (mounted) setState(() {});
-          }),
+          ).then((_) => _refresh()),
           child: Container(
             decoration: BoxDecoration(
               color: BeColors.canvasElevated,
@@ -316,7 +463,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: runs.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final run = runs[index];
         final double km = run.distanceInMeters / 1000;

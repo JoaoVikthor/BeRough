@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart' hide Path;
 import 'dart:async';
-import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -9,8 +8,37 @@ import '../app_state.dart';
 import '../design/tokens.dart';
 import 'run_summary_screen.dart';
 
+/// Tracker de corrida ao vivo.
+///
+/// - Sem "robozinho"/simulador: GPS real apenas.
+/// - Mapa captura a localização do atleta imediatamente ao abrir a tela
+///   (não espera o play). O marcador segue o atleta em tempo real.
+/// - Tracking de posição começa no initState; distância/cronômetro só
+///   avançam ao tocar em play.
 class RunningScreen extends StatefulWidget {
-  const RunningScreen({super.key});
+  /// true quando esta tela está sendo usada como "corrida de avaliação"
+  /// para calibrar o baseline de corrida da trilha.
+  final bool isAssessment;
+
+  /// true quando esta corrida é um PASSO de uma trilha de corrida. Ao
+  /// finalizar, o resumo marca o passo como concluído e abre a tela de
+  /// parabéns em vez de só voltar para a Home.
+  final bool isTrailStep;
+
+  /// Id da skill de corrida cuja trilha está sendo executada (quando
+  /// `isTrailStep` for true).
+  final String? trailSkillId;
+
+  /// true se este passo é o último da trilha (meta final).
+  final bool isFinalStep;
+
+  const RunningScreen({
+    super.key,
+    this.isAssessment = false,
+    this.isTrailStep = false,
+    this.trailSkillId,
+    this.isFinalStep = false,
+  });
 
   @override
   State<RunningScreen> createState() => _RunningScreenState();
@@ -28,19 +56,16 @@ class _RunningScreenState extends State<RunningScreen> {
   int _calories = 0;
   String _currentPace = "-'--\"";
 
-  // Checa se a localização atual foi obtida (para poder renderizar o mapa no
-  // local do atleta imediatamente, estilo apps de corrida profissionais).
+  // Localização capturada imediatamente ao abrir a tela.
   Position? _currentPosition;
   bool _isLocating = true;
 
-  // Rota capturada — usada tanto no mapa (em LatLng) quanto no cronômetro.
   final List<Position> _routeCoordinates = [];
   final List<LatLng> _mapPoints = [];
   StreamSubscription<Position>? _positionStreamSubscription;
 
   String _gpsStatus = "Buscando sinal...";
   Color _gpsSignalColor = BeColors.semanticWarning;
-  bool _isSimulatorMode = false;
 
   @override
   void initState() {
@@ -56,8 +81,8 @@ class _RunningScreenState extends State<RunningScreen> {
     super.dispose();
   }
 
-  /// Verifica permissão e pega a posição inicial do atleta antes de habilitar o
-  /// botão de "play". Em simulador, sintetiza uma posição base em São Paulo.
+  /// Pega a posição inicial do atleta E abre o stream de tracking imediato,
+  /// para o marcador seguir o atleta mesmo antes do play.
   Future<void> _bootstrapGPS() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -103,6 +128,7 @@ class _RunningScreenState extends State<RunningScreen> {
         _gpsStatus = "GPS Pronto";
         _gpsSignalColor = BeColors.semanticSuccess;
       });
+      _startTrackingStream();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -113,11 +139,44 @@ class _RunningScreenState extends State<RunningScreen> {
     }
   }
 
+  /// Abre o stream de posição em tempo real. Atualiza o marcador no mapa
+  /// sempre; se o treino estiver em curso, acumula distância/rota.
+  void _startTrackingStream() {
+    _positionStreamSubscription?.cancel();
+    const LocationSettings locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 3,
+    );
+    _positionStreamSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings)
+            .listen((Position position) {
+      _onPositionUpdate(position);
+    }, onError: (error) {
+      debugPrint("Erro na captura de sinal de GPS: $error");
+    });
+  }
+
+  void _onPositionUpdate(Position newPosition) {
+    if (!mounted) return;
+    setState(() {
+      _currentPosition = newPosition;
+    });
+    if (_isRunning) {
+      _addCoordinate(newPosition);
+    } else {
+      // Mesmo parado, centraliza o mapa no atleta (tracking sem gravar).
+      if (_currentPosition != null) {
+        _mapController.move(
+            LatLng(newPosition.latitude, newPosition.longitude), 17.0);
+      }
+    }
+  }
+
   void _startWorkout() {
     setState(() {
       _isRunning = true;
       _isPaused = false;
-      _gpsStatus = _isSimulatorMode ? "Modo Simulador" : "Sinal Conectado";
+      _gpsStatus = "Treino em Curso";
       _gpsSignalColor = BeColors.semanticSuccess;
       _routeCoordinates.clear();
       _mapPoints.clear();
@@ -127,8 +186,8 @@ class _RunningScreenState extends State<RunningScreen> {
       // Ponto de partida inicial no mapa.
       if (_currentPosition != null) {
         _routeCoordinates.add(_currentPosition!);
-        _mapPoints
-            .add(LatLng(_currentPosition!.latitude, _currentPosition!.longitude));
+        _mapPoints.add(
+            LatLng(_currentPosition!.latitude, _currentPosition!.longitude));
       }
     });
 
@@ -137,23 +196,8 @@ class _RunningScreenState extends State<RunningScreen> {
         _seconds++;
         _calculateCalories();
         _calculatePace();
-        if (_isSimulatorMode) _simulateMovement();
       });
     });
-
-    if (!_isSimulatorMode && _currentPosition != null) {
-      const LocationSettings locationSettings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 3,
-      );
-      _positionStreamSubscription =
-          Geolocator.getPositionStream(locationSettings: locationSettings)
-              .listen((Position position) {
-        if (_isRunning) _addCoordinate(position);
-      }, onError: (error) {
-        debugPrint("Erro na captura de sinal de GPS: $error");
-      });
-    }
   }
 
   void _addCoordinate(Position newPosition) {
@@ -170,53 +214,15 @@ class _RunningScreenState extends State<RunningScreen> {
           _distanceInMeters += distanceBetween;
           _routeCoordinates.add(newPosition);
           _mapPoints.add(LatLng(newPosition.latitude, newPosition.longitude));
-          _currentPosition = newPosition;
-          _mapController.move(
-              LatLng(newPosition.latitude, newPosition.longitude), 17.0);
         });
+        _mapController.move(
+            LatLng(newPosition.latitude, newPosition.longitude), 17.0);
       }
     } else {
       setState(() {
         _routeCoordinates.add(newPosition);
         _mapPoints.add(LatLng(newPosition.latitude, newPosition.longitude));
-        _currentPosition = newPosition;
       });
-    }
-  }
-
-  /// Simula uma caminhada/corrida em redor de um ponto para testes no emulador.
-  void _simulateMovement() {
-    final double baseLat = -23.5489; // São Paulo
-    final double baseLong = -46.6388;
-    final double radiusOffset = 0.0002;
-    final double angle = _seconds * 0.15;
-    final double newLat =
-        baseLat + (sin(angle) * radiusOffset * (_seconds * 0.05));
-    final double newLong =
-        baseLong + (cos(angle) * radiusOffset * (_seconds * 0.05));
-    final fakePosition = Position(
-      latitude: newLat,
-      longitude: newLong,
-      timestamp: DateTime.now(),
-      accuracy: 1.0,
-      altitude: 0.0,
-      altitudeAccuracy: 0.0,
-      heading: 0.0,
-      headingAccuracy: 0.0,
-      speed: 2.8,
-      speedAccuracy: 0.0,
-    );
-
-    if (fakePosition == _routeCoordinates.lastOrNull) return;
-    if (_mapPoints.isEmpty ||
-        Geolocator.distanceBetween(
-              _routeCoordinates.last.latitude,
-              _routeCoordinates.last.longitude,
-              fakePosition.latitude,
-              fakePosition.longitude,
-            ) >
-            1.5) {
-      _addCoordinate(fakePosition);
     }
   }
 
@@ -243,7 +249,6 @@ class _RunningScreenState extends State<RunningScreen> {
 
   void _pauseWorkout() {
     _timer?.cancel();
-    _positionStreamSubscription?.cancel();
     setState(() {
       _isPaused = true;
       _isRunning = false;
@@ -254,16 +259,20 @@ class _RunningScreenState extends State<RunningScreen> {
 
   void _stopWorkout() {
     _timer?.cancel();
-    _positionStreamSubscription?.cancel();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: BeColors.canvasElevated,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        title: Text("Finalizar Corrida?", style: BeFonts.titleMd.copyWith(fontSize: 18)),
+        title:
+            Text("Finalizar Corrida?", style: BeFonts.titleMd.copyWith(fontSize: 18)),
         content: Text(
-          "Deseja fechar o treino e prosseguir para analisar suas parciais e gerar seu resumo?",
+          widget.isAssessment
+              ? "Encerrar a corrida de avaliação e usar como base do seu treino?"
+              : widget.isTrailStep
+                  ? "Encerrar o passo de corrida e concluir esta etapa da trilha?"
+                  : "Deseja fechar o treino e prosseguir para analisar suas parciais e gerar seu resumo?",
           style: BeFonts.bodyMd.copyWith(color: BeColors.body),
         ),
         actions: [
@@ -287,13 +296,23 @@ class _RunningScreenState extends State<RunningScreen> {
                     pace: _currentPace,
                     calories: _calories,
                     routeCoordinates: List.from(_routeCoordinates),
+                    isAssessment: widget.isAssessment,
+                    isTrailStep: widget.isTrailStep,
+                    trailSkillId: widget.trailSkillId,
+                    isFinalStep: widget.isFinalStep,
                   ),
                 ),
               );
             },
             style: ElevatedButton.styleFrom(
                 backgroundColor: BeColors.primary, elevation: 0),
-            child: Text("VER MEU RESUMO", style: BeFonts.button),
+            child: Text(
+                widget.isAssessment
+                    ? "USAR COMO BASE"
+                    : widget.isTrailStep
+                        ? "CONCLUIR PASSO"
+                        : "VER MEU RESUMO",
+                style: BeFonts.button),
           ),
         ],
       ),
@@ -321,49 +340,11 @@ class _RunningScreenState extends State<RunningScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, color: BeColors.ink),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text("TRACKER DE CORRIDA"),
-        actions: [
-          Row(
-            children: [
-              Icon(Icons.smart_toy_outlined, color: BeColors.muted, size: 16),
-              Switch(
-                value: _isSimulatorMode,
-                activeThumbColor: BeColors.primary,
-                inactiveThumbColor: BeColors.muted,
-                inactiveTrackColor: BeColors.canvasElevated,
-                onChanged: _isRunning
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _isSimulatorMode = value;
-                          if (value) {
-                            // Sintetiza ponto de partida para liberar o mapa no simulador.
-                            _currentPosition = Position(
-                              latitude: -23.5489,
-                              longitude: -46.6388,
-                              timestamp: DateTime.now(),
-                              accuracy: 1.0,
-                              altitude: 0.0,
-                              altitudeAccuracy: 0.0,
-                              heading: 0.0,
-                              headingAccuracy: 0.0,
-                              speed: 0.0,
-                              speedAccuracy: 0.0,
-                            );
-                            _isLocating = false;
-                            _gpsStatus = "Modo Simulador";
-                            _gpsSignalColor = BeColors.primary;
-                          } else {
-                            _gpsStatus = "Buscando sinal...";
-                            _gpsSignalColor = BeColors.semanticWarning;
-                            _bootstrapGPS();
-                          }
-                        });
-                      },
-              ),
-            ],
-          )
-        ],
+        title: Text(widget.isAssessment
+            ? "CORRIDA DE AVALIAÇÃO"
+            : widget.isTrailStep
+                ? "PASSO DE CORRIDA"
+                : "TRACKER DE CORRIDA"),
       ),
       body: SafeArea(
         child: Column(
@@ -388,8 +369,8 @@ class _RunningScreenState extends State<RunningScreen> {
                             style: BeFonts.bodyMd.copyWith(color: BeColors.ink)),
                       ],
                     ),
-                    if (_isSimulatorMode)
-                      Text("Teste Ativo",
+                    if (_isRunning)
+                      Text("AO VIVO",
                           style: BeFonts.captionUppercase.copyWith(
                               color: BeColors.primary,
                               fontSize: 10,
@@ -485,10 +466,9 @@ class _RunningScreenState extends State<RunningScreen> {
     );
   }
 
-  /// Área do mapa: exibe flutter_map centrado na posição do atleta com a rota
-  /// em vermelho (Rosso Corsa) sendo desenhada em tempo real. Quando o GPS não
-  /// está disponível, mostra o placeholder do Custom Canvas (RoutePainter) como
-  /// fallback editorial — para visualizar o trajeto mesmo sem mapa.
+  /// Área do mapa: exibe flutter_map centrado na posição do atleta, com a
+  /// rota em vermelho (Rosso Corsa) sendo desenhada em tempo real. O mapa
+  /// aparece imediatamente assim que o GPS é obtido — antes do play.
   Widget _buildMapArea() {
     if (_isLocating || _currentPosition == null) {
       return Center(
@@ -533,7 +513,7 @@ class _RunningScreenState extends State<RunningScreen> {
               ),
             ],
           ),
-        // Marcador da posição atual do atleta
+        // Marcador da posição atual do atleta (sempre visível)
         MarkerLayer(
           markers: [
             Marker(

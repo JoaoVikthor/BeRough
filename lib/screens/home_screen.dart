@@ -4,7 +4,6 @@ import '../design/tokens.dart';
 import '../design/ui.dart';
 import 'journey/dashboard_screen.dart';
 import 'journey/trail_detail_screen.dart';
-import 'running_screen.dart';
 import 'skill_selection_screen.dart';
 import 'profile_screen.dart';
 
@@ -98,23 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: BeSpacing.sm),
 
-                _buildMissionCard(
-                  context,
-                  title: "Corrida ao Ar Livre",
-                  subtitle: "Rastreamento por GPS em tempo real",
-                  description:
-                      "Monitore seu trajeto no mapa, calcule seu ritmo (pace) e meça suas calorias de forma real.",
-                  isActive: true,
-                  badgeText: "Cardio Ativo",
-                  icon: Icons.directions_run_rounded,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const RunningScreen()),
-                  ),
-                ),
-                const SizedBox(height: BeSpacing.xs),
-
                 if (selectedSkills.isEmpty)
                   _buildEmptyTrilhasCard(context)
                 else
@@ -123,12 +105,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.only(bottom: BeSpacing.xxs),
                       child: _buildMissionCard(
                         context,
-                        title: "Desafio ${skill.name}",
-                        subtitle: skill.category,
-                        description:
-                            "Progressões com o peso corporal focadas no desenvolvimento de força neural para ${skill.name}.",
+                        title: skill.isRunning
+                            ? "Trilha de Corrida"
+                            : "Desafio ${skill.name}",
+                        subtitle: skill.isRunning
+                            ? "Rastreamento por GPS em tempo real"
+                            : skill.category,
+                        description: skill.isRunning
+                            ? "Trilha progressiva calibrada à sua corrida prévia. Cada passo avança até sua meta de distância/ritmo."
+                            : "Progressões com o peso corporal focadas no desenvolvimento de força neural para ${skill.name}.",
                         isActive: true,
-                        badgeText: "${skill.difficulty} — Missão Ativa",
+                        badgeText: skill.isRunning
+                            ? "Corrida — Missão Ativa"
+                            : "${skill.difficulty} — Missão Ativa",
                         icon: _getSkillIcon(skill.iconName),
                         onTap: () => Navigator.push(
                           context,

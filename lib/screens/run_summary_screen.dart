@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../app_state.dart';
 import '../design/tokens.dart';
 import '../design/ui.dart';
-import 'running_screen.dart';
 import 'home_screen.dart';
+import 'trail/step_complete_screen.dart';
 
 class RunSummaryScreen extends StatelessWidget {
   final double distanceInMeters;
@@ -13,6 +15,22 @@ class RunSummaryScreen extends StatelessWidget {
   final int calories;
   final List<Position> routeCoordinates;
 
+  /// true quando esta corrida foi uma avaliação — ao salvar, vira o baseline
+  /// usado para dimensionar a trilha de corrida.
+  final bool isAssessment;
+
+  /// true quando esta corrida é um PASSO de uma trilha de corrida. Ao
+  /// salvar, o resumo marca o passo como concluído e abre a tela de
+  /// parabéns correspondente.
+  final bool isTrailStep;
+
+  /// Id da skill de corrida cuja trilha está sendo executada (quando
+  /// `isTrailStep` for true).
+  final String? trailSkillId;
+
+  /// true se este passo é o último da trilha (meta final).
+  final bool isFinalStep;
+
   const RunSummaryScreen({
     super.key,
     required this.distanceInMeters,
@@ -20,6 +38,10 @@ class RunSummaryScreen extends StatelessWidget {
     required this.pace,
     required this.calories,
     required this.routeCoordinates,
+    this.isAssessment = false,
+    this.isTrailStep = false,
+    this.trailSkillId,
+    this.isFinalStep = false,
   });
 
   String _formatTime(int totalSeconds) {
@@ -38,7 +60,58 @@ class RunSummaryScreen extends StatelessWidget {
       route: routeCoordinates,
     ));
 
+    // Se foi avaliação, grava como baseline da trilha de corrida.
+    if (isAssessment) {
+      AppState.instance.setRunBaselineAssessment(
+        distanceMeters: distanceInMeters,
+        seconds: seconds.toDouble(),
+        pace: pace,
+        route: routeCoordinates,
+      );
+      await AppState.instance.saveProfile();
+    }
+
+    // Se é um passo de trilha, marca como concluído e abre a tela de
+    // parabéns da trilha (em vez de só voltar para a Home).
+    TrailStep? step;
+    if (isTrailStep && trailSkillId != null) {
+      final completed =
+          AppState.instance.completedStages[trailSkillId!] ?? 0;
+      AppState.instance.completedStages[trailSkillId!] = completed + 1;
+      await AppState.instance.saveProfile();
+      step = TrailStep(
+        id: '${trailSkillId!}_run',
+        index: completed,
+        goalFraction: 1.0,
+        title: isFinalStep ? 'Desafio Final: corrida' : 'Passada de corrida',
+        desc: '',
+        metricKind: TrailMetricKind.distance,
+        targetValue: distanceInMeters,
+        estimateFromBaseline: seconds.toDouble(),
+      );
+    }
+
     if (!context.mounted) return;
+
+    if (isTrailStep && step != null) {
+      final skill = AppState.instance.availableSkills
+          .firstWhere((s) => s.id == trailSkillId);
+      final completedStep = step;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => StepCompleteScreen(
+            skill: skill,
+            step: completedStep,
+            isFinalStep: isFinalStep,
+            achievedLog:
+                "Corrida de ${(distanceInMeters / 1000).toStringAsFixed(2)} km em ${_formatTime(seconds)} (pace $pace).",
+          ),
+        ),
+        (Route<dynamic> route) => route.isFirst,
+      );
+      return;
+    }
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const HomeScreen()),
       (Route<dynamic> route) => false,
@@ -164,8 +237,65 @@ class RunSummaryScreen extends StatelessWidget {
                   children: [
                     if (routeCoordinates.isNotEmpty)
                       Positioned.fill(
-                        child: CustomPaint(
-                          painter: RoutePainter(coordinates: routeCoordinates),
+                        child: FlutterMap(
+                          options: MapOptions(
+                            initialCenter: LatLng(
+                              routeCoordinates.first.latitude,
+                              routeCoordinates.first.longitude,
+                            ),
+                            initialZoom: 16.0,
+                            interactionOptions: const InteractionOptions(
+                              flags: InteractiveFlag.none,
+                            ),
+                          ),
+                          children: [
+                            TileLayer(
+                              urlTemplate:
+                                  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                              subdomains: const ['a', 'b', 'c', 'd'],
+                            ),
+                            PolylineLayer(
+                              polylines: [
+                                Polyline(
+                                  points: routeCoordinates
+                                      .map((p) => LatLng(p.latitude, p.longitude))
+                                      .toList(),
+                                  color: BeColors.primary,
+                                  strokeWidth: 5.0,
+                                ),
+                              ],
+                            ),
+                            MarkerLayer(
+                              markers: [
+                                Marker(
+                                  point: LatLng(routeCoordinates.first.latitude,
+                                      routeCoordinates.first.longitude),
+                                  width: 18,
+                                  height: 18,
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: BeColors.semanticSuccess,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                                Marker(
+                                  point: LatLng(routeCoordinates.last.latitude,
+                                      routeCoordinates.last.longitude),
+                                  width: 18,
+                                  height: 18,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: BeColors.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: BeColors.ink, width: 2),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       )
                     else

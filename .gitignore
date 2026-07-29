@@ -44,3 +44,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Documentação interna (não versionada no GitHub)
+/documentacao/
+
+# Config/auxiliares de ferramentas locais (não versionados no GitHub)
+/.opencode/
+/.skill/

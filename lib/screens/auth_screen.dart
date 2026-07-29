@@ -59,7 +59,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       await GoogleSignIn.instance.initialize();
-      final GoogleSignInAccount? googleUser =
+      final GoogleSignInAccount googleUser =
           await GoogleSignIn.instance.authenticate();
       if (googleUser == null) {
         if (!mounted) return;
