@@ -7,6 +7,8 @@ import '../../design/ui.dart';
 import '../profile_screen.dart';
 import '../running_screen.dart';
 import '../run_history_screen.dart';
+import '../trail/evolution_tree_screen.dart';
+import '../training/training_options_screen.dart';
 import 'trail_detail_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -116,6 +118,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const BeSectionLabel("Conselho do Treinador"),
               const SizedBox(height: BeSpacing.xxs),
               _buildCoachTip(),
+              const SizedBox(height: BeSpacing.sm),
+
+              const BeSectionLabel("Explorar"),
+              const SizedBox(height: BeSpacing.xxs),
+              _buildExploreRow(context),
               const SizedBox(height: BeSpacing.lg),
             ],
           ),
@@ -191,7 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: BeFonts.titleMd.copyWith(fontSize: 16)),
               BeBadgePill(
                 label: "XPs: $currentXP / $nextLevelXP",
-                background: BeColors.primary.withOpacity(0.12),
+                background: BeColors.primary.withValues(alpha: 0.12),
                 foreground: BeColors.primary,
               ),
             ],
@@ -486,6 +493,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  /// Linha de atalhos exploração — Árvore de Evolução e Opções de Treino.
+  Widget _buildExploreRow(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ExploreTile(
+            icon: Icons.account_tree_outlined,
+            title: "Árvore de Evolução",
+            subtitle: "Visualize suas skills",
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const EvolutionTreeScreen()),
+            ).then((_) => _refresh()),
+          ),
+        ),
+        const SizedBox(width: BeSpacing.xxs),
+        Expanded(
+          child: _ExploreTile(
+            icon: Icons.grid_view_rounded,
+            title: "Opções de Treino",
+            subtitle: "Escolha como treinar",
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const TrainingOptionsScreen()),
+            ).then((_) => _refresh()),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildCoachTip() {
     return BeCard(
       padding: const EdgeInsets.all(BeSpacing.xs),
@@ -496,7 +536,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: BeColors.primary.withOpacity(0.12),
+              color: BeColors.primary.withValues(alpha: 0.12),
               border: Border.all(color: BeColors.primary, width: 1),
             ),
             child: const Icon(Icons.sports,
@@ -519,6 +559,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ExploreTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ExploreTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(BeSpacing.xs),
+        decoration: BoxDecoration(
+          color: BeColors.canvasElevated,
+          border: Border.all(color: BeColors.hairline, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: BeColors.primary, size: 24),
+            const SizedBox(height: BeSpacing.xxs),
+            Text(title,
+                style: BeFonts.titleSm.copyWith(
+                    fontSize: 13, color: BeColors.ink)),
+            const SizedBox(height: 2),
+            Text(subtitle,
+                style: BeFonts.caption.copyWith(color: BeColors.muted)),
+          ],
+        ),
       ),
     );
   }

@@ -394,7 +394,7 @@ class _TrailDetailScreenState extends State<TrailDetailScreen> {
               if (goal != null)
                 BeBadgePill(
                   label: goal.describe(widget.skill),
-                  background: BeColors.primary.withOpacity(0.12),
+                  background: BeColors.primary.withValues(alpha: 0.12),
                   foreground: BeColors.primary,
                 ),
             ],

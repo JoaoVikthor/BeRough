@@ -52,7 +52,7 @@ class StepCompleteScreen extends StatelessWidget {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                  color: BeColors.primary.withOpacity(0.12),
+                  color: BeColors.primary.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                   border: Border.all(color: BeColors.primary, width: 2),
                 ),

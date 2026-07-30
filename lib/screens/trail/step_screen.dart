@@ -273,7 +273,7 @@ class _StepScreenState extends State<StepScreen> {
               const SizedBox(height: BeSpacing.xs),
               BeBadgePill(
                 label: "Hold Concluído",
-                background: BeColors.semanticSuccess.withOpacity(0.12),
+                background: BeColors.semanticSuccess.withValues(alpha: 0.12),
                 foreground: BeColors.semanticSuccess,
               ),
             ],

@@ -197,9 +197,9 @@ class RunSummaryScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
-              border: Border.all(color: color.withOpacity(0.5), width: 1),
+              border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
             ),
             child: Icon(icon, color: color, size: 26),
           ),
@@ -231,7 +231,7 @@ class RunSummaryScreen extends StatelessWidget {
                     horizontal: BeSpacing.xs, vertical: 12),
                 decoration: BoxDecoration(
                   color: BeColors.canvasElevated,
-                  border: Border.all(color: BeColors.primary.withOpacity(0.3), width: 1),
+                  border: Border.all(color: BeColors.primary.withValues(alpha: 0.3), width: 1),
                 ),
                 child: Stack(
                   children: [
@@ -326,7 +326,7 @@ class RunSummaryScreen extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: BeColors.canvas.withOpacity(0.85),
+                          color: BeColors.canvas.withValues(alpha: 0.85),
                           border: Border.all(color: BeColors.hairline, width: 1),
                         ),
                         child: Row(

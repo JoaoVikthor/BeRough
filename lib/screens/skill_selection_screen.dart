@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../app_state.dart';
 import '../design/tokens.dart';
 import '../design/ui.dart';
-import '../models/trail_generator.dart';
 import 'home_screen.dart';
 
 class SkillSelectionScreen extends StatefulWidget {
@@ -332,7 +331,7 @@ class _SkillSelectionScreenState extends State<SkillSelectionScreen> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? BeColors.primary.withOpacity(0.12)
+                        ? BeColors.primary.withValues(alpha: 0.12)
                         : BeColors.canvas,
                     border: Border.all(
                       color: isSelected ? BeColors.primary : BeColors.hairline,
@@ -360,7 +359,7 @@ class _SkillSelectionScreenState extends State<SkillSelectionScreen> {
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: _getDifficultyColor(skill.difficulty)
-                                  .withOpacity(0.12),
+                                  .withValues(alpha: 0.12),
                             ),
                             child: Text(
                               skill.difficulty.toUpperCase(),

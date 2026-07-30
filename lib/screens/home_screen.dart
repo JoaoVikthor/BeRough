@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../design/tokens.dart';
 import '../design/ui.dart';
+import 'community/community_feed_screen.dart';
 import 'journey/dashboard_screen.dart';
 import 'journey/trail_detail_screen.dart';
 import 'skill_selection_screen.dart';
@@ -24,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _screens = [
       const DashboardScreen(),
       _buildJourneyTab(),
-      _buildTriboPlaceholder(),
+      const CommunityFeedScreen(),
       const ProfileScreen(),
     ];
   }
@@ -39,34 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'accessibility_new': return Icons.accessibility_new_rounded;
       default: return Icons.fitness_center;
     }
-  }
-
-  Widget _buildTriboPlaceholder() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(BeSpacing.sm),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.group_outlined,
-                size: 64, color: BeColors.muted),
-            const SizedBox(height: BeSpacing.xs),
-            Text(
-              "TRIBO\nEm Breve",
-              textAlign: TextAlign.center,
-              style: BeFonts.displayMd.copyWith(
-                  color: BeColors.muted, fontSize: 22, letterSpacing: -0.22),
-            ),
-            const SizedBox(height: BeSpacing.xxs),
-            Text(
-              "Comunidade e feed social para os atletas BeRough.",
-              textAlign: TextAlign.center,
-              style: BeFonts.bodyMd.copyWith(color: BeColors.muted),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildJourneyTab() {
@@ -214,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
               BeBadgePill(
                 label: badgeText,
                 background: isActive
-                    ? BeColors.primary.withOpacity(0.12)
+                    ? BeColors.primary.withValues(alpha: 0.12)
                     : BeColors.canvasElevated,
                 foreground:
                     isActive ? BeColors.primary : BeColors.muted,

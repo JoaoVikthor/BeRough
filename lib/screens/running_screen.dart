@@ -522,7 +522,7 @@ class _RunningScreenState extends State<RunningScreen> {
               height: 22,
               child: Container(
                 decoration: BoxDecoration(
-                  color: BeColors.primary.withOpacity(0.25),
+                  color: BeColors.primary.withValues(alpha: 0.25),
                   shape: BoxShape.circle,
                   border: Border.all(color: BeColors.primary, width: 2),
                 ),
@@ -642,7 +642,7 @@ class RoutePainter extends CustomPainter {
     canvas.drawCircle(getOffset(coordinates.first), 6.0, pointPaint);
     pointPaint.color = BeColors.ink;
     canvas.drawCircle(getOffset(coordinates.last), 7.0, pointPaint);
-    pointPaint.color = BeColors.primary.withOpacity(0.5);
+    pointPaint.color = BeColors.primary.withValues(alpha: 0.5);
     canvas.drawCircle(getOffset(coordinates.last), 12.0, pointPaint);
   }
 

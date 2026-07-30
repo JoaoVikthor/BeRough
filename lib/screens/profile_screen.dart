@@ -388,7 +388,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: BeFonts.titleMd.copyWith(fontSize: 16)),
               BeBadgePill(
                 label: "XPs: $xp / $next",
-                background: BeColors.primary.withOpacity(0.12),
+                background: BeColors.primary.withValues(alpha: 0.12),
                 foreground: BeColors.primary,
               ),
             ],
@@ -499,14 +499,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.all(BeSpacing.xs),
       decoration: BoxDecoration(
         color: BeColors.canvasElevated,
-        border: Border.all(color: color.withOpacity(0.5), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               border: Border.all(color: color, width: 1),
             ),
             child: Icon(icon, color: color, size: 28),
@@ -526,7 +526,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     BeBadgePill(
                       label: "IMC: ${currentBmi.toStringAsFixed(1)}",
-                      background: color.withOpacity(0.12),
+                      background: color.withValues(alpha: 0.12),
                       foreground: color,
                     ),
                   ],
@@ -592,7 +592,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (pr != null)
                 BeBadgePill(
                   label: "PR: $pr",
-                  background: BeColors.primary.withOpacity(0.12),
+                  background: BeColors.primary.withValues(alpha: 0.12),
                   foreground: BeColors.primary,
                 )
               else
